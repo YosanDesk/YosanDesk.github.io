@@ -15,6 +15,7 @@ const categories = [
 ];
 
 const ratios = ["4/5", "3/2", "1/1", "5/7", "16/10", "4/3"];
+const removedBaseIds = new Set([56, 58, 61, 62, 63, 64, 67, 69, 70, 79, 81, 82, 83, 84, 87, 88, 97, 98, 105, 110, 115, 116, 117, 118, 119, 120, 121, 122, 126, 129, 131]);
 const baseItems = categories.slice(1).flatMap((category, categoryIndex) =>
   Array.from({ length: 11 }, (_, index) => {
     const id = categoryIndex * 11 + index + 1;
@@ -43,7 +44,7 @@ function readLocalArray(key) {
 
 const deletedIds = new Set(readLocalArray("deskDeletedIds"));
 const customItems = readLocalArray("deskCustomItems");
-let items = [...baseItems, ...xhsItems, ...xhsLatestItems].filter(item => !deletedIds.has(item.id)).concat(customItems);
+let items = [...baseItems.filter(item => !removedBaseIds.has(item.id)), ...xhsItems, ...xhsLatestItems].filter(item => !deletedIds.has(item.id)).concat(customItems);
 
 const gallery = document.querySelector("#gallery");
 const filters = document.querySelector("#filters");
