@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="桌搭灵感库：按科技、极简、原木、电竞、工业、奶油、复古等风格浏览桌面布置参考。" />
+    <title>桌面志 · 桌搭灵感库</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="桌面志首页"><span class="brand-mark">桌</span><span>桌面志<small>DESKSCAPE INDEX</small></span></a>
+      <div class="top-actions">
+        <button class="icon-btn" id="randomBtn" type="button" title="随机灵感" aria-label="随机灵感">↻</button>
+        <button class="add-btn" id="addImageBtn" type="button">＋ 添加图片</button>
+        <button class="saved-btn" id="savedBtn" type="button"><span>♡</span> 收藏夹 <b id="savedCount">0</b></button>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="intro">
+        <div>
+          <p class="kicker">DESK SETUP INSPIRATION · 2026</p>
+          <h1>你的下一张桌子，<br /><em>从这里开始。</em></h1>
+        </div>
+        <div class="intro-copy">
+          <p>为桌搭内容创作者整理的视觉选题库。覆盖居家办公、数码生产力与游戏空间，按风格快速找到可复用的构图、配色与陈列思路。</p>
+          <div class="stats"><span><b id="imageTotal">932</b> 张灵感</span><span><b id="xhsTotal">800</b> 张小红书实拍</span><span><b>12</b> 种风格</span></div>
+        </div>
+      </section>
+
+      <section class="controls" aria-label="筛选工具">
+        <label class="search"><span>⌕</span><input id="searchInput" type="search" placeholder="搜索风格、空间或元素…" /></label>
+        <div class="source-row" id="sourceFilters" role="group" aria-label="图片来源">
+          <button class="source-filter active" type="button" data-source="all">全部来源</button>
+          <button class="source-filter" type="button" data-source="xiaohongshu-latest">常用桌搭 <b>300</b></button>
+          <button class="source-filter" type="button" data-source="other">其他桌搭 <b>632</b></button>
+        </div>
+        <div class="filter-row" id="filters" role="group" aria-label="风格分类"></div>
+      </section>
+
+      <section class="collection">
+        <div class="collection-head">
+          <div><span class="line"></span><p>CURATED COLLECTION</p><h2 id="resultTitle">全部灵感</h2></div>
+          <p class="result-count"><b id="resultCount">132</b> 个结果</p>
+        </div>
+        <div class="masonry" id="gallery" aria-live="polite"></div>
+        <div class="empty" id="emptyState" hidden><strong>没有找到相符的桌搭</strong><p>换个关键词或清除筛选再试试。</p><button id="clearBtn" type="button">查看全部</button></div>
+      </section>
+    </main>
+
+    <dialog id="lightbox" class="lightbox">
+      <button class="close-btn" type="button" aria-label="关闭">×</button>
+      <div class="lightbox-media"><img id="lightboxImage" alt="" /></div>
+      <div class="lightbox-info"><p id="lightboxNo"></p><h3 id="lightboxTitle"></h3><p id="lightboxTags"></p><p id="lightboxNote" class="lightbox-note"></p><div class="preview-links"><a id="originalLink" target="_blank">打开本地原图 ↗</a><a id="sourceLink" target="_blank" rel="noopener noreferrer">查看图片来源 ↗</a></div></div>
+    </dialog>
+
+    <dialog id="addImageDialog" class="add-dialog">
+      <form id="addImageForm" method="dialog">
+        <button class="close-btn" id="addCloseBtn" type="button" aria-label="关闭">×</button>
+        <p class="kicker">ADD TO YOUR INDEX</p>
+        <h2>添加一张桌搭</h2>
+        <label class="upload-field"><span>图片文件</span><input id="imageFile" name="imageFile" type="file" accept="image/*" required /><small id="fileHint">支持 JPG、PNG、WEBP，图片只保存在当前浏览器</small></label>
+        <label><span>归类风格</span><select id="imageCategory" name="imageCategory"></select></label>
+        <label><span>布置 / 拍摄备注</span><textarea id="imageNote" name="imageNote" rows="3" placeholder="例如：侧拍、暖光、双屏、原木桌面、适合做开箱选题…"></textarea></label>
+        <label><span>来源链接（可选）</span><input id="imageSource" name="imageSource" type="url" placeholder="https://…" /></label>
+        <div class="add-form-actions"><button class="button secondary" id="addCancelBtn" type="button">取消</button><button class="button primary" type="submit">保存到图库</button></div>
+      </form>
+    </dialog>
+
+    <footer><div class="brand"><span class="brand-mark">桌</span><span>桌面志<small>DESKSCAPE INDEX</small></span></div><p><span id="footerCount">932</span> 张图片已保存至本地，其中 <span id="footerXhsCount">800</span> 张来自小红书公开实拍笔记。仅供个人审美积累；转载或商用前，请联系原作者。</p><a href="#top">回到顶部 ↑</a></footer>
+    <div class="toast" id="toast" role="status"></div>
+    <script src="xhs-data.js?v=500"></script>
+    <script src="xhs-latest-data.js?v=300"></script>
+    <script src="script.js?v=source-groups"></script>
+  </body>
+</html>
