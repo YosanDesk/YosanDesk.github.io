@@ -18,6 +18,7 @@ const categories = [
 ];
 
 const ratios = ["4/5", "3/2", "1/1", "5/7", "16/10", "4/3"];
+const collectionNames = { common: "常用桌搭", other: "其他桌搭", torras: "图拉斯桌搭" };
 const removedBaseIds = new Set([56, 58, 61, 62, 63, 64, 67, 69, 70, 79, 81, 82, 83, 84, 87, 88, 97, 98, 105, 110, 115, 116, 117, 118, 119, 120, 121, 122, 126, 129, 131]);
 const baseItems = categories.slice(1).flatMap((category, categoryIndex) =>
   Array.from({ length: 11 }, (_, index) => {
@@ -74,11 +75,16 @@ const addImageBtn = document.querySelector("#addImageBtn");
 const addImageDialog = document.querySelector("#addImageDialog");
 const addImageForm = document.querySelector("#addImageForm");
 const imageFile = document.querySelector("#imageFile");
+const imageCollection = document.querySelector("#imageCollection");
 const imageCategory = document.querySelector("#imageCategory");
 const imageNote = document.querySelector("#imageNote");
 const imageSource = document.querySelector("#imageSource");
 const deletePasswordDialog = document.querySelector("#deletePasswordDialog");
 const deletePasswordForm = document.querySelector("#deletePasswordForm");
+const styleEditDialog = document.querySelector("#styleEditDialog");
+const styleEditForm = document.querySelector("#styleEditForm");
+const styleEditCategory = document.querySelector("#styleEditCategory");
+let pendingStyleKey = "";
 
 categories.forEach(category => {
   const button = document.createElement("button");
@@ -90,11 +96,19 @@ categories.forEach(category => {
 });
 
 categories.filter(category => category.id !== "all").forEach(category => {
-  const option = document.createElement("option");
-  option.value = category.id;
-  option.textContent = category.name;
-  imageCategory.append(option);
+  [imageCategory, styleEditCategory].forEach(select => {
+    const option = document.createElement("option");
+    option.value = category.id;
+    option.textContent = category.name;
+    select.append(option);
+  });
 });
+
+function sourceGroup(item) {
+  if (item.platform === "xiaohongshu-latest" || item.platform === "common") return "common";
+  if (item.platform === "torras") return "torras";
+  return "other";
+}
 
 function cloudRowToItem(row, existing = {}) {
   const category = categories.find(entry => entry.id === row.category);
@@ -135,7 +149,7 @@ function visibleItems() {
   return items.filter(item => {
     const categoryMatch = activeCategory === "all" || item.category === activeCategory;
     const textMatch = !term || [item.title, item.categoryName, ...(item.tags || [])].join(" ").toLowerCase().includes(term);
-    const sourceMatch = activeSource === "all" || (activeSource === "other" ? item.platform !== "xiaohongshu-latest" : item.platform === activeSource);
+    const sourceMatch = activeSource === "all" || sourceGroup(item) === activeSource;
     return categoryMatch && sourceMatch && textMatch && (!savedOnly || saved.has(item.key));
   });
 }
@@ -166,7 +180,7 @@ function cardTemplate(item) {
       <span class="num">${formatNo(item)}</span>
       <button class="delete-btn" type="button" aria-label="删除图片">⌫</button>
     </div>
-    <div class="card-body style-only-body"><div><span class="style-label style-only-label">${escapeHtml(item.categoryName)}</span></div><button class="save${active}" type="button" aria-label="收藏">${active ? "♥" : "♡"}</button></div>
+    <div class="card-body style-only-body"><div><button class="style-label style-only-label style-edit-btn" type="button" aria-label="修改风格：${escapeHtml(item.categoryName)}" title="点击修改风格">${escapeHtml(item.categoryName)}</button></div><button class="save${active}" type="button" aria-label="收藏">${active ? "♥" : "♡"}</button></div>
   </article>`;
 }
 
@@ -176,12 +190,13 @@ function render() {
   document.querySelector("#imageTotal").textContent = items.length;
   document.querySelector("#footerCount").textContent = items.length;
   document.querySelector("#resultCount").textContent = list.length;
-  document.querySelector('[data-source="xiaohongshu-latest"] b').textContent = items.filter(item => item.platform === "xiaohongshu-latest").length;
-  document.querySelector('[data-source="other"] b').textContent = items.filter(item => item.platform !== "xiaohongshu-latest").length;
+  document.querySelector('[data-source="common"] b').textContent = items.filter(item => sourceGroup(item) === "common").length;
+  document.querySelector('[data-source="other"] b').textContent = items.filter(item => sourceGroup(item) === "other").length;
+  document.querySelector('[data-source="torras"] b').textContent = items.filter(item => sourceGroup(item) === "torras").length;
   const xhsCount = items.filter(item => item.platform === "xiaohongshu" || item.platform === "xiaohongshu-latest").length;
   document.querySelector("#xhsTotal").textContent = xhsCount;
   document.querySelector("#footerXhsCount").textContent = xhsCount;
-  const sourceTitle = activeSource === "xiaohongshu-latest" ? " · 常用桌搭" : activeSource === "other" ? " · 其他桌搭" : "";
+  const sourceTitle = activeSource === "common" ? " · 常用桌搭" : activeSource === "other" ? " · 其他桌搭" : activeSource === "torras" ? " · 图拉斯桌搭" : "";
   document.querySelector("#resultTitle").textContent = savedOnly ? "我的收藏" : categories.find(c => c.id === activeCategory).name + (activeCategory === "all" ? "灵感" : "桌搭") + sourceTitle;
   document.querySelector("#emptyState").hidden = list.length > 0;
   gallery.querySelectorAll("img").forEach(img => {
@@ -220,6 +235,16 @@ async function deleteCloudItem(sourceKey) {
     if (response.status === 400 || response.status === 401 || response.status === 403) throw new Error("delete-session-invalid");
     throw new Error("cloud-delete-failed");
   }
+  return response.json();
+}
+
+async function updateCloudStyle(sourceKey, category) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/update_desk_item_style`, {
+    method: "POST",
+    headers: apiHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ p_source_key: sourceKey, p_category: category })
+  });
+  if (!response.ok) throw new Error("style-update-failed");
   return response.json();
 }
 
@@ -280,6 +305,13 @@ gallery.addEventListener("click", async event => {
   const card = event.target.closest(".card"); if (!card) return;
   const item = items.find(entry => entry.key === card.dataset.key);
   if (!item) return;
+  if (event.target.closest(".style-edit-btn")) {
+    event.stopPropagation();
+    pendingStyleKey = item.key;
+    styleEditCategory.value = item.category;
+    styleEditDialog.showModal();
+    return;
+  }
   if (event.target.closest(".delete-btn")) {
     event.stopPropagation();
     if (!window.confirm(`确定从所有访客的网站中删除这张${item.categoryName}图片吗？`)) return;
@@ -336,6 +368,7 @@ addImageForm.addEventListener("submit", async event => {
   if (!file) { showToast("请先选择一张图片"); return; }
   if (file.size > 50 * 1024 * 1024) { showToast("单张原图不能超过 50MB"); return; }
   const category = categories.find(entry => entry.id === imageCategory.value);
+  const collectionName = collectionNames[imageCollection.value];
   const submit = addImageForm.querySelector('[type="submit"]');
   const originalText = submit.textContent;
   submit.disabled = true; submit.textContent = "上传原图中…";
@@ -359,7 +392,7 @@ addImageForm.addEventListener("submit", async event => {
     ratio: dimensions.width && dimensions.height ? `${dimensions.width}/${dimensions.height}` : "4/5",
     image_url: publicUrl,
     source_url: imageSource.value.trim() || null,
-    platform: "custom",
+    platform: imageCollection.value,
     note: imageNote.value.trim() || null,
     original_width: dimensions.width || null,
     original_height: dimensions.height || null,
@@ -378,7 +411,30 @@ addImageForm.addEventListener("submit", async event => {
   document.querySelectorAll(".filter").forEach(el => el.classList.toggle("active", el.dataset.category === "all"));
   document.querySelectorAll(".source-filter").forEach(el => el.classList.toggle("active", el.dataset.source === "all"));
   submit.disabled = false; submit.textContent = originalText;
-  render(); showToast(`已同步添加到${category.name}`);
+  render(); showToast(`已同步添加到${collectionName} · ${category.name}`);
+});
+
+document.querySelector("#styleEditCloseBtn").addEventListener("click", () => styleEditDialog.close());
+document.querySelector("#styleEditCancelBtn").addEventListener("click", () => styleEditDialog.close());
+styleEditDialog.addEventListener("click", event => { if (event.target === styleEditDialog) styleEditDialog.close(); });
+styleEditForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  const item = items.find(entry => entry.key === pendingStyleKey);
+  if (!item) { styleEditDialog.close(); return; }
+  const submit = styleEditForm.querySelector('[type="submit"]');
+  submit.disabled = true; submit.textContent = "保存中…";
+  let savedRow;
+  try {
+    savedRow = await updateCloudStyle(item.key, styleEditCategory.value);
+  } catch {
+    submit.disabled = false; submit.textContent = "保存风格";
+    showToast("风格修改失败，请稍后重试"); return;
+  }
+  const existing = remoteRows.find(row => row.source_key === item.key);
+  if (existing) Object.assign(existing, savedRow); else remoteRows.push(savedRow);
+  pendingStyleKey = "";
+  styleEditDialog.close(); submit.disabled = false; submit.textContent = "保存风格";
+  rebuildItems(); render(); showToast("风格已同步更新");
 });
 
 async function performDelete(item, button) {

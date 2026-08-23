@@ -21,7 +21,7 @@
       <section class="intro">
         <div>
           <p class="kicker">DESK SETUP INSPIRATION · 2026</p>
-          <h1>你的下一张桌子，<br /><em>从这里开始。</em></h1>
+          <h1>你的桌搭<br /><em>灵感库</em></h1>
         </div>
         <div class="intro-copy">
           <p>为桌搭内容创作者整理的视觉选题库。覆盖居家办公、数码生产力与游戏空间，按风格快速找到可复用的构图、配色与陈列思路。</p>
@@ -33,8 +33,9 @@
         <label class="search"><span>⌕</span><input id="searchInput" type="search" placeholder="搜索风格、空间或元素…" /></label>
         <div class="source-row" id="sourceFilters" role="group" aria-label="图片来源">
           <button class="source-filter active" type="button" data-source="all">全部来源</button>
-          <button class="source-filter" type="button" data-source="xiaohongshu-latest">常用桌搭 <b>300</b></button>
+          <button class="source-filter" type="button" data-source="common">常用桌搭 <b>300</b></button>
           <button class="source-filter" type="button" data-source="other">其他桌搭 <b>632</b></button>
+          <button class="source-filter" type="button" data-source="torras">图拉斯桌搭 <b>0</b></button>
         </div>
         <div class="filter-row" id="filters" role="group" aria-label="风格分类"></div>
       </section>
@@ -61,10 +62,22 @@
         <p class="kicker">ADD TO YOUR INDEX</p>
         <h2>添加一张桌搭</h2>
         <label class="upload-field"><span>图片文件</span><input id="imageFile" name="imageFile" type="file" accept="image/*" required /><small id="fileHint">所有访客均可添加；支持 JPG、PNG、WEBP，保留原文件并同步到云端</small></label>
-        <label><span>归类风格</span><select id="imageCategory" name="imageCategory"></select></label>
+        <label><span>桌搭大分类</span><select id="imageCollection" name="imageCollection" required><option value="common">常用桌搭</option><option value="other" selected>其他桌搭</option><option value="torras">图拉斯桌搭</option></select></label>
+        <label><span>归类风格</span><select id="imageCategory" name="imageCategory" required></select></label>
         <label><span>布置 / 拍摄备注</span><textarea id="imageNote" name="imageNote" rows="3" placeholder="例如：侧拍、暖光、双屏、原木桌面、适合做开箱选题…"></textarea></label>
         <label><span>来源链接（可选）</span><input id="imageSource" name="imageSource" type="url" placeholder="https://…" /></label>
         <div class="add-form-actions"><button class="button secondary" id="addCancelBtn" type="button">取消</button><button class="button primary" type="submit">保存到图库</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="styleEditDialog" class="add-dialog auth-dialog">
+      <form id="styleEditForm" method="dialog">
+        <button class="close-btn" id="styleEditCloseBtn" type="button" aria-label="关闭">×</button>
+        <p class="kicker">EDIT STYLE</p>
+        <h2>修改图片风格</h2>
+        <p class="auth-copy">选择后会同步到所有访客，并归类到对应的风格筛选中。</p>
+        <label><span>风格词</span><select id="styleEditCategory" name="styleEditCategory" required></select></label>
+        <div class="add-form-actions"><button class="button secondary" id="styleEditCancelBtn" type="button">取消</button><button class="button primary" type="submit">保存风格</button></div>
       </form>
     </dialog>
 
@@ -83,6 +96,6 @@
     <div class="toast" id="toast" role="status"></div>
     <script src="xhs-data.js?v=500"></script>
     <script src="xhs-latest-data.js?v=300"></script>
-    <script src="script.js?v=public-add-password-delete-1"></script>
+    <script src="script.js?v=editable-style-torras-1"></script>
   </body>
 </html>

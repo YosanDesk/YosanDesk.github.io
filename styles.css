@@ -53,7 +53,8 @@ h1 em{color:var(--green);font-weight:500}
 .style-label{display:inline-block;margin-bottom:7px;padding:3px 7px;background:#e6eee9;color:var(--green);font-size:10px;font-weight:800;letter-spacing:.4px}
 .style-only-body{position:relative;justify-content:center;text-align:center;min-height:66px;padding:15px 48px 16px}
 .style-only-body>div{width:100%}
-.style-only-label{margin:0;padding:0;background:transparent;color:var(--ink);font-family:Georgia,"Songti SC",serif;font-size:22px;letter-spacing:0}
+.style-only-label{margin:0;padding:0;border:0;background:transparent;color:var(--ink);font-family:Georgia,"Songti SC",serif;font-size:22px;font-weight:800;letter-spacing:0;cursor:pointer}
+.style-only-label:hover,.style-only-label:focus-visible{color:var(--green);text-decoration:underline;text-underline-offset:5px}
 .style-only-body .save{position:absolute;right:14px;top:17px}
 .card h3{margin:0 0 6px;font-family:Georgia,"Songti SC",serif;font-size:16px;font-weight:600}
 .meta{font-size:10px;color:var(--muted);letter-spacing:.5px}
