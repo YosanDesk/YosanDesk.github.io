@@ -11,6 +11,7 @@
     <header class="topbar">
       <a class="brand" href="#top" aria-label="桌面志首页"><span class="brand-mark">桌</span><span>桌面志<small>DESKSCAPE INDEX</small></span></a>
       <div class="top-actions">
+        <button class="auth-btn" id="authBtn" type="button">管理员登录</button>
         <button class="icon-btn" id="randomBtn" type="button" title="随机灵感" aria-label="随机灵感">↻</button>
         <button class="add-btn" id="addImageBtn" type="button">＋ 添加图片</button>
         <button class="saved-btn" id="savedBtn" type="button"><span>♡</span> 收藏夹 <b id="savedCount">0</b></button>
@@ -60,7 +61,7 @@
         <button class="close-btn" id="addCloseBtn" type="button" aria-label="关闭">×</button>
         <p class="kicker">ADD TO YOUR INDEX</p>
         <h2>添加一张桌搭</h2>
-        <label class="upload-field"><span>图片文件</span><input id="imageFile" name="imageFile" type="file" accept="image/*" required /><small id="fileHint">支持 JPG、PNG、WEBP，图片只保存在当前浏览器</small></label>
+        <label class="upload-field"><span>图片文件</span><input id="imageFile" name="imageFile" type="file" accept="image/*" required /><small id="fileHint">支持 JPG、PNG、WEBP，保留原文件并同步到云端</small></label>
         <label><span>归类风格</span><select id="imageCategory" name="imageCategory"></select></label>
         <label><span>布置 / 拍摄备注</span><textarea id="imageNote" name="imageNote" rows="3" placeholder="例如：侧拍、暖光、双屏、原木桌面、适合做开箱选题…"></textarea></label>
         <label><span>来源链接（可选）</span><input id="imageSource" name="imageSource" type="url" placeholder="https://…" /></label>
@@ -68,10 +69,22 @@
       </form>
     </dialog>
 
-    <footer><div class="brand"><span class="brand-mark">桌</span><span>桌面志<small>DESKSCAPE INDEX</small></span></div><p><span id="footerCount">932</span> 张图片已保存至本地，其中 <span id="footerXhsCount">800</span> 张来自小红书公开实拍笔记。仅供个人审美积累；转载或商用前，请联系原作者。</p><a href="#top">回到顶部 ↑</a></footer>
+    <dialog id="authDialog" class="add-dialog auth-dialog">
+      <form id="authForm" method="dialog">
+        <button class="close-btn" id="authCloseBtn" type="button" aria-label="关闭">×</button>
+        <p class="kicker">OWNER ACCESS</p>
+        <h2>管理员登录</h2>
+        <p class="auth-copy">输入站长邮箱，我们会发送一次性登录链接。只有站长账号能添加或删除全站图片。</p>
+        <label><span>邮箱</span><input id="authEmail" name="authEmail" type="email" autocomplete="email" placeholder="name@example.com" required /></label>
+        <div class="add-form-actions"><button class="button secondary" id="authCancelBtn" type="button">取消</button><button class="button primary" type="submit">发送登录链接</button></div>
+      </form>
+    </dialog>
+
+    <footer><div class="brand"><span class="brand-mark">桌</span><span>桌面志<small>DESKSCAPE INDEX</small></span></div><p><span id="footerCount">932</span> 张图片已同步展示，其中 <span id="footerXhsCount">800</span> 张来自小红书公开实拍笔记。仅供个人审美积累；转载或商用前，请联系原作者。</p><a href="#top">回到顶部 ↑</a></footer>
     <div class="toast" id="toast" role="status"></div>
     <script src="xhs-data.js?v=500"></script>
     <script src="xhs-latest-data.js?v=300"></script>
-    <script src="script.js?v=source-groups"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="script.js?v=cloud-sync-1"></script>
   </body>
 </html>

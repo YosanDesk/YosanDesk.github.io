@@ -11,8 +11,10 @@ a{text-decoration:none}
 .brand-mark{display:grid;place-items:center;width:38px;height:38px;background:var(--green);color:#fff;font-size:17px}
 .top-actions{display:flex;gap:9px}
 .add-btn{height:40px;padding:0 14px;border:1px solid var(--green);background:var(--green);color:#fff;cursor:pointer;font-size:12px;font-weight:800}
-.icon-btn,.saved-btn{height:40px;border:1px solid var(--line);background:transparent;cursor:pointer}
+.icon-btn,.saved-btn,.auth-btn{height:40px;border:1px solid var(--line);background:transparent;cursor:pointer}
 .icon-btn{width:40px;font-size:20px}
+.auth-btn{padding:0 13px;font-size:12px;font-weight:700}
+.auth-btn.active{border-color:var(--green);color:var(--green)}
 .saved-btn{padding:0 14px}
 .saved-btn b{display:inline-grid;place-items:center;min-width:20px;height:20px;margin-left:5px;border-radius:10px;background:var(--ink);color:white;font-size:11px}
 .saved-btn.active{background:var(--ink);color:#fff}
@@ -77,7 +79,9 @@ h1 em{color:var(--green);font-weight:500}
 .preview-links{display:flex;gap:22px;margin-top:13px}
 .image-error .image-wrap::after{content:"图片读取失败";position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:12px}
 .delete-btn{position:absolute;left:14px;bottom:14px;width:30px;height:30px;border:1px solid #e2d0cc;background:#fff;color:var(--red);cursor:pointer;font-size:15px;opacity:0;transition:opacity .2s}
-.card:hover .delete-btn,.card:focus-within .delete-btn{opacity:1}
+.delete-btn{display:none}
+.is-admin .delete-btn{display:block}
+.is-admin .card:hover .delete-btn,.is-admin .card:focus-within .delete-btn{opacity:1}
 .add-dialog{width:min(520px,92vw);padding:0;border:0;background:#f8f7f3;box-shadow:0 30px 100px rgba(0,0,0,.35)}
 .add-dialog::backdrop{background:rgba(16,18,16,.72);backdrop-filter:blur(4px)}
 .add-dialog form{position:relative;padding:30px 28px 28px}
@@ -88,6 +92,7 @@ h1 em{color:var(--green);font-weight:500}
 .add-dialog textarea{resize:vertical;line-height:1.6}
 .add-dialog input:focus,.add-dialog select:focus,.add-dialog textarea:focus{border-color:var(--green);box-shadow:0 0 0 2px rgba(24,95,69,.12)}
 .add-dialog small{display:block;margin-top:6px;color:var(--muted);font-size:10px;font-weight:400}
+.auth-copy{margin:-9px 0 20px;color:var(--muted);font-size:13px;line-height:1.7}
 .add-form-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:23px}
 .add-form-actions .button{min-height:40px}
 .close-btn{position:absolute;right:12px;top:12px;z-index:2;width:38px;height:38px;border:0;background:rgba(255,255,255,.9);cursor:pointer;font-size:24px}
@@ -97,6 +102,7 @@ footer>a{font-size:12px}
 .toast{position:fixed;left:50%;bottom:24px;z-index:50;transform:translate(-50%,20px);padding:10px 17px;background:#171816;color:#fff;font-size:12px;opacity:0;pointer-events:none;transition:.2s}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 @media(max-width:760px){.intro{grid-template-columns:1fr;gap:35px;padding-top:55px}
+.topbar{padding-left:12px;padding-right:12px}.top-actions{gap:5px}.auth-btn{padding:0 8px}.add-btn{padding:0 9px}
 .stats{gap:15px}
 .controls{top:69px}
 .masonry{columns:2 145px;column-gap:10px}
@@ -109,6 +115,7 @@ footer>a{font-size:12px}
 footer{grid-template-columns:1fr;gap:15px}
 .lightbox-media img{height:55vh}
 .saved-btn{font-size:12px}
+.auth-btn{max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 }
 @media(max-width:420px){h1{font-size:44px}
 .intro{min-height:0}
