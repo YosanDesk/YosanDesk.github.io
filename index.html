@@ -11,7 +11,6 @@
     <header class="topbar">
       <a class="brand" href="#top" aria-label="桌面志首页"><span class="brand-mark">桌</span><span>桌面志<small>DESKSCAPE INDEX</small></span></a>
       <div class="top-actions">
-        <button class="auth-btn" id="authBtn" type="button">管理员登录</button>
         <button class="icon-btn" id="randomBtn" type="button" title="随机灵感" aria-label="随机灵感">↻</button>
         <button class="add-btn" id="addImageBtn" type="button">＋ 添加图片</button>
         <button class="saved-btn" id="savedBtn" type="button"><span>♡</span> 收藏夹 <b id="savedCount">0</b></button>
@@ -61,7 +60,7 @@
         <button class="close-btn" id="addCloseBtn" type="button" aria-label="关闭">×</button>
         <p class="kicker">ADD TO YOUR INDEX</p>
         <h2>添加一张桌搭</h2>
-        <label class="upload-field"><span>图片文件</span><input id="imageFile" name="imageFile" type="file" accept="image/*" required /><small id="fileHint">支持 JPG、PNG、WEBP，保留原文件并同步到云端</small></label>
+        <label class="upload-field"><span>图片文件</span><input id="imageFile" name="imageFile" type="file" accept="image/*" required /><small id="fileHint">所有访客均可添加；支持 JPG、PNG、WEBP，保留原文件并同步到云端</small></label>
         <label><span>归类风格</span><select id="imageCategory" name="imageCategory"></select></label>
         <label><span>布置 / 拍摄备注</span><textarea id="imageNote" name="imageNote" rows="3" placeholder="例如：侧拍、暖光、双屏、原木桌面、适合做开箱选题…"></textarea></label>
         <label><span>来源链接（可选）</span><input id="imageSource" name="imageSource" type="url" placeholder="https://…" /></label>
@@ -69,14 +68,14 @@
       </form>
     </dialog>
 
-    <dialog id="authDialog" class="add-dialog auth-dialog">
-      <form id="authForm" method="dialog">
-        <button class="close-btn" id="authCloseBtn" type="button" aria-label="关闭">×</button>
-        <p class="kicker">OWNER ACCESS</p>
-        <h2>管理员登录</h2>
-        <p class="auth-copy">输入站长邮箱，我们会发送一次性登录链接。只有站长账号能添加或删除全站图片。</p>
-        <label><span>邮箱</span><input id="authEmail" name="authEmail" type="email" autocomplete="email" placeholder="name@example.com" required /></label>
-        <div class="add-form-actions"><button class="button secondary" id="authCancelBtn" type="button">取消</button><button class="button primary" type="submit">发送登录链接</button></div>
+    <dialog id="deletePasswordDialog" class="add-dialog auth-dialog">
+      <form id="deletePasswordForm" method="dialog">
+        <button class="close-btn" id="deletePasswordCloseBtn" type="button" aria-label="关闭">×</button>
+        <p class="kicker">DELETE ACCESS</p>
+        <h2>输入删除密码</h2>
+        <p class="auth-copy">当前浏览器验证一次后会记住删除权限，之后删除图片无需重复输入。</p>
+        <label><span>删除密码</span><input id="deletePassword" name="deletePassword" type="password" inputmode="numeric" autocomplete="current-password" required /></label>
+        <div class="add-form-actions"><button class="button secondary" id="deletePasswordCancelBtn" type="button">取消</button><button class="button primary" type="submit">确认并解锁</button></div>
       </form>
     </dialog>
 
@@ -84,6 +83,6 @@
     <div class="toast" id="toast" role="status"></div>
     <script src="xhs-data.js?v=500"></script>
     <script src="xhs-latest-data.js?v=300"></script>
-    <script src="script.js?v=cloud-sync-2"></script>
+    <script src="script.js?v=public-add-password-delete-1"></script>
   </body>
 </html>

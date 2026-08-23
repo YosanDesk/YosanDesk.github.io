@@ -56,11 +56,11 @@ function readLocalArray(key) {
 }
 
 const saved = new Set(readLocalArray("deskSaved").map(String));
-const AUTH_SESSION_KEY = "deskSupabaseSession";
+const DELETE_TOKEN_KEY = "deskDeleteToken";
 let remoteRows = [];
 let items = [...sourceItems];
-let currentUser = null;
-let authSession = null;
+let deleteToken = localStorage.getItem(DELETE_TOKEN_KEY) || "";
+let pendingDeleteKey = "";
 let activeCategory = "all";
 let activeSource = "all";
 let savedOnly = false;
@@ -77,9 +77,8 @@ const imageFile = document.querySelector("#imageFile");
 const imageCategory = document.querySelector("#imageCategory");
 const imageNote = document.querySelector("#imageNote");
 const imageSource = document.querySelector("#imageSource");
-const authBtn = document.querySelector("#authBtn");
-const authDialog = document.querySelector("#authDialog");
-const authForm = document.querySelector("#authForm");
+const deletePasswordDialog = document.querySelector("#deletePasswordDialog");
+const deletePasswordForm = document.querySelector("#deletePasswordForm");
 
 categories.forEach(category => {
   const button = document.createElement("button");
@@ -197,101 +196,37 @@ function updateSaved() {
   document.querySelector("#savedCount").textContent = saved.size;
 }
 
-function loadStoredSession() {
-  try {
-    return JSON.parse(localStorage.getItem(AUTH_SESSION_KEY) || "null");
-  } catch {
-    return null;
+function apiHeaders(extra = {}) {
+  return { apikey: SUPABASE_PUBLISHABLE_KEY, ...extra };
+}
+
+async function unlockDeletion(password) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/unlock_desk_deletion`, {
+    method: "POST",
+    headers: apiHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ p_password: password })
+  });
+  if (!response.ok) throw new Error("invalid-password");
+  return response.json();
+}
+
+async function deleteCloudItem(sourceKey) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/delete_desk_item`, {
+    method: "POST",
+    headers: apiHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ p_source_key: sourceKey, p_token: deleteToken })
+  });
+  if (!response.ok) {
+    if (response.status === 400 || response.status === 401 || response.status === 403) throw new Error("delete-session-invalid");
+    throw new Error("cloud-delete-failed");
   }
-}
-
-function saveSession(session) {
-  authSession = session;
-  currentUser = session?.user || null;
-  if (session) localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
-  else localStorage.removeItem(AUTH_SESSION_KEY);
-  updateAuthUI();
-}
-
-function apiHeaders(authenticated = false, extra = {}) {
-  const headers = { apikey: SUPABASE_PUBLISHABLE_KEY, ...extra };
-  if (authenticated && authSession?.access_token) headers.Authorization = `Bearer ${authSession.access_token}`;
-  return headers;
-}
-
-async function refreshSessionIfNeeded() {
-  if (!authSession?.refresh_token) return false;
-  if ((authSession.expires_at || 0) > Date.now() + 60_000) return true;
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
-    method: "POST",
-    headers: apiHeaders(false, { "Content-Type": "application/json" }),
-    body: JSON.stringify({ refresh_token: authSession.refresh_token })
-  });
-  if (!response.ok) { saveSession(null); return false; }
-  const data = await response.json();
-  saveSession({ ...data, expires_at: Date.now() + Number(data.expires_in || 3600) * 1000 });
-  return true;
-}
-
-function consumeAuthRedirect() {
-  const params = new URLSearchParams(location.hash.replace(/^#/, ""));
-  if (!params.get("access_token")) return false;
-  const expiresIn = Number(params.get("expires_in") || 3600);
-  const session = {
-    access_token: params.get("access_token"),
-    refresh_token: params.get("refresh_token"),
-    token_type: params.get("token_type") || "bearer",
-    expires_in: expiresIn,
-    expires_at: Date.now() + expiresIn * 1000,
-    user: null
-  };
-  authSession = session;
-  history.replaceState(null, "", `${location.pathname}${location.search}`);
-  return true;
-}
-
-async function loadCurrentUser() {
-  if (!authSession?.access_token) return null;
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: apiHeaders(true) });
-  if (!response.ok) return null;
-  const user = await response.json();
-  saveSession({ ...authSession, user });
-  return user;
-}
-
-async function sendMagicLink(email) {
-  const redirectTo = `${location.origin}${location.pathname}`;
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/otp?redirect_to=${encodeURIComponent(redirectTo)}`, {
-    method: "POST",
-    headers: apiHeaders(false, { "Content-Type": "application/json" }),
-    body: JSON.stringify({ email, create_user: true })
-  });
-  if (!response.ok) throw new Error("magic-link-failed");
-}
-
-async function signOutAdmin() {
-  if (authSession?.access_token) {
-    await fetch(`${SUPABASE_URL}/auth/v1/logout`, { method: "POST", headers: apiHeaders(true) }).catch(() => {});
-  }
-  saveSession(null);
-}
-
-async function upsertCloudRow(record) {
-  await refreshSessionIfNeeded();
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/desk_items?on_conflict=source_key`, {
-    method: "POST",
-    headers: apiHeaders(true, { "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=representation" }),
-    body: JSON.stringify(record)
-  });
-  if (!response.ok) throw new Error("cloud-write-failed");
-  return (await response.json())[0];
+  return response.json();
 }
 
 async function insertCloudRow(record) {
-  await refreshSessionIfNeeded();
   const response = await fetch(`${SUPABASE_URL}/rest/v1/desk_items`, {
     method: "POST",
-    headers: apiHeaders(true, { "Content-Type": "application/json", Prefer: "return=representation" }),
+    headers: apiHeaders({ "Content-Type": "application/json", Prefer: "return=representation" }),
     body: JSON.stringify(record)
   });
   if (!response.ok) throw new Error("cloud-insert-failed");
@@ -299,38 +234,13 @@ async function insertCloudRow(record) {
 }
 
 async function uploadOriginal(path, file) {
-  await refreshSessionIfNeeded();
   const response = await fetch(`${SUPABASE_URL}/storage/v1/object/desk-images/${path.split("/").map(encodeURIComponent).join("/")}`, {
     method: "POST",
-    headers: apiHeaders(true, { "Content-Type": file.type || "application/octet-stream", "x-upsert": "false" }),
+    headers: apiHeaders({ "Content-Type": file.type || "application/octet-stream", "x-upsert": "false" }),
     body: file
   });
   if (!response.ok) throw new Error("upload-failed");
   return `${SUPABASE_URL}/storage/v1/object/public/desk-images/${path.split("/").map(encodeURIComponent).join("/")}`;
-}
-
-async function removeUploadedOriginal(path) {
-  await refreshSessionIfNeeded();
-  await fetch(`${SUPABASE_URL}/storage/v1/object/desk-images/${path.split("/").map(encodeURIComponent).join("/")}`, {
-    method: "DELETE",
-    headers: apiHeaders(true)
-  }).catch(() => {});
-}
-
-function updateAuthUI() {
-  const signedIn = Boolean(currentUser);
-  document.body.classList.toggle("is-admin", signedIn);
-  authBtn.classList.toggle("active", signedIn);
-  authBtn.textContent = signedIn ? "退出管理" : "管理员登录";
-}
-
-function requestAdmin() {
-  if (!currentUser) {
-    authDialog.showModal();
-    showToast("请先完成管理员登录");
-    return false;
-  }
-  return true;
 }
 
 async function loadCloudRows(silent = false) {
@@ -346,15 +256,7 @@ async function loadCloudRows(silent = false) {
 }
 
 async function initCloud() {
-  const redirected = consumeAuthRedirect();
-  if (!redirected) authSession = loadStoredSession();
-  if (authSession) {
-    await refreshSessionIfNeeded();
-    await loadCurrentUser();
-  }
-  updateAuthUI();
   await loadCloudRows();
-  if (redirected && currentUser) showToast("管理员登录成功");
   setInterval(() => loadCloudRows(true), 10_000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) loadCloudRows(true); });
 }
@@ -380,27 +282,14 @@ gallery.addEventListener("click", async event => {
   if (!item) return;
   if (event.target.closest(".delete-btn")) {
     event.stopPropagation();
-    if (!requestAdmin()) return;
     if (!window.confirm(`确定从所有访客的网站中删除这张${item.categoryName}图片吗？`)) return;
-    const button = event.target.closest(".delete-btn");
-    button.disabled = true;
-    const record = {
-      source_key: item.key,
-      legacy_id: typeof item.id === "number" ? item.id : null,
-      deleted: true,
-      updated_at: new Date().toISOString()
-    };
-    try {
-      const savedRow = await upsertCloudRow(record);
-      const existing = remoteRows.find(row => row.source_key === item.key);
-      if (existing) Object.assign(existing, savedRow || record); else remoteRows.push(savedRow || record);
-    } catch {
-      button.disabled = false;
-      showToast("删除失败，请确认使用站长邮箱登录");
+    if (!deleteToken) {
+      pendingDeleteKey = item.key;
+      deletePasswordDialog.showModal();
+      document.querySelector("#deletePassword").focus();
       return;
     }
-    saved.delete(item.key);
-    updateSaved(); rebuildItems(); render(); showToast("已同步删除，所有访客均会更新"); return;
+    await performDelete(item, event.target.closest(".delete-btn")); return;
   }
   if (event.target.closest(".save")) {
     event.stopPropagation();
@@ -418,7 +307,7 @@ gallery.addEventListener("click", async event => {
   lightbox.showModal();
 });
 
-addImageBtn.addEventListener("click", () => { if (requestAdmin()) addImageDialog.showModal(); });
+addImageBtn.addEventListener("click", () => addImageDialog.showModal());
 document.querySelector("#addCloseBtn").addEventListener("click", () => addImageDialog.close());
 document.querySelector("#addCancelBtn").addEventListener("click", () => addImageDialog.close());
 addImageDialog.addEventListener("click", event => { if (event.target === addImageDialog) addImageDialog.close(); });
@@ -443,7 +332,6 @@ function safeFileName(name) {
 
 addImageForm.addEventListener("submit", async event => {
   event.preventDefault();
-  if (!requestAdmin()) return;
   const file = imageFile.files[0];
   if (!file) { showToast("请先选择一张图片"); return; }
   if (file.size > 50 * 1024 * 1024) { showToast("单张原图不能超过 50MB"); return; }
@@ -453,7 +341,7 @@ addImageForm.addEventListener("submit", async event => {
   submit.disabled = true; submit.textContent = "上传原图中…";
   const dimensions = await imageDimensions(file);
   const token = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  const path = `${currentUser.id}/${token}-${safeFileName(file.name)}`;
+  const path = `public/${token}-${safeFileName(file.name)}`;
   let publicUrl;
   try {
     publicUrl = await uploadOriginal(path, file);
@@ -481,9 +369,8 @@ addImageForm.addEventListener("submit", async event => {
   try {
     data = await insertCloudRow(record);
   } catch {
-    await removeUploadedOriginal(path);
     submit.disabled = false; submit.textContent = originalText;
-    showToast("保存失败，请确认使用站长邮箱登录"); return;
+    showToast("保存失败，请稍后重试"); return;
   }
   remoteRows.push(data);
   rebuildItems();
@@ -494,27 +381,53 @@ addImageForm.addEventListener("submit", async event => {
   render(); showToast(`已同步添加到${category.name}`);
 });
 
-authBtn.addEventListener("click", async () => {
-  if (currentUser) {
-    await signOutAdmin();
-    showToast("已退出管理模式");
-  } else {
-    authDialog.showModal();
+async function performDelete(item, button) {
+  button.disabled = true;
+  let savedRow;
+  try {
+    savedRow = await deleteCloudItem(item.key);
+  } catch (error) {
+    button.disabled = false;
+    if (error.message === "delete-session-invalid") {
+      deleteToken = "";
+      localStorage.removeItem(DELETE_TOKEN_KEY);
+      pendingDeleteKey = item.key;
+      deletePasswordDialog.showModal();
+      showToast("删除权限已过期，请重新输入密码");
+    } else {
+      showToast("删除失败，请稍后重试");
+    }
+    return;
   }
-});
-document.querySelector("#authCloseBtn").addEventListener("click", () => authDialog.close());
-document.querySelector("#authCancelBtn").addEventListener("click", () => authDialog.close());
-authDialog.addEventListener("click", event => { if (event.target === authDialog) authDialog.close(); });
-authForm.addEventListener("submit", async event => {
+  const existing = remoteRows.find(row => row.source_key === item.key);
+  if (existing) Object.assign(existing, savedRow); else remoteRows.push(savedRow);
+  saved.delete(item.key);
+  updateSaved(); rebuildItems(); render(); showToast("已同步删除，所有访客均会更新");
+}
+
+document.querySelector("#deletePasswordCloseBtn").addEventListener("click", () => deletePasswordDialog.close());
+document.querySelector("#deletePasswordCancelBtn").addEventListener("click", () => deletePasswordDialog.close());
+deletePasswordDialog.addEventListener("click", event => { if (event.target === deletePasswordDialog) deletePasswordDialog.close(); });
+deletePasswordForm.addEventListener("submit", async event => {
   event.preventDefault();
-  const submit = authForm.querySelector('[type="submit"]');
-  submit.disabled = true; submit.textContent = "发送中…";
-  const email = document.querySelector("#authEmail").value.trim();
-  let failed = false;
-  try { await sendMagicLink(email); } catch { failed = true; }
-  submit.disabled = false; submit.textContent = "发送登录链接";
-  if (failed) { showToast("登录链接发送失败"); return; }
-  authDialog.close(); showToast("登录链接已发送，请查看邮箱");
+  const submit = deletePasswordForm.querySelector('[type="submit"]');
+  submit.disabled = true; submit.textContent = "验证中…";
+  try {
+    deleteToken = await unlockDeletion(document.querySelector("#deletePassword").value);
+  } catch {
+    submit.disabled = false; submit.textContent = "确认并解锁";
+    showToast("删除密码错误"); return;
+  }
+  localStorage.setItem(DELETE_TOKEN_KEY, deleteToken);
+  deletePasswordForm.reset(); deletePasswordDialog.close();
+  submit.disabled = false; submit.textContent = "确认并解锁";
+  const item = items.find(entry => entry.key === pendingDeleteKey);
+  pendingDeleteKey = "";
+  showToast("删除权限已解锁，当前浏览器无需再次输入");
+  if (item) {
+    const button = gallery.querySelector(`[data-key="${CSS.escape(item.key)}"] .delete-btn`);
+    if (button) await performDelete(item, button);
+  }
 });
 
 searchInput.addEventListener("input", render);
