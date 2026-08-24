@@ -37,6 +37,7 @@
           <button class="source-filter" type="button" data-source="other">其他桌搭 <b>632</b></button>
           <button class="source-filter" type="button" data-source="torras">图拉斯桌搭 <b>0</b></button>
         </div>
+        <p class="source-edit-hint">电脑端右键照片 · 手机端长按照片，可调整桌搭大区</p>
         <div class="filter-row" id="filters" role="group" aria-label="风格分类"></div>
       </section>
 
@@ -81,6 +82,17 @@
       </form>
     </dialog>
 
+    <dialog id="collectionEditDialog" class="add-dialog auth-dialog">
+      <form id="collectionEditForm" method="dialog">
+        <button class="close-btn" id="collectionEditCloseBtn" type="button" aria-label="关闭">×</button>
+        <p class="kicker">MOVE COLLECTION</p>
+        <h2>调整桌搭大区</h2>
+        <p class="auth-copy">保存后会同步到所有访客，并更新对应大区的图片数量。</p>
+        <label><span>移动到</span><select id="collectionEditSelect" name="collectionEditSelect" required><option value="common">常用桌搭</option><option value="other">其他桌搭</option><option value="torras">图拉斯桌搭</option></select></label>
+        <div class="add-form-actions"><button class="button secondary" id="collectionEditCancelBtn" type="button">取消</button><button class="button primary" type="submit">保存大区</button></div>
+      </form>
+    </dialog>
+
     <dialog id="deletePasswordDialog" class="add-dialog auth-dialog">
       <form id="deletePasswordForm" method="dialog">
         <button class="close-btn" id="deletePasswordCloseBtn" type="button" aria-label="关闭">×</button>
@@ -96,6 +108,6 @@
     <div class="toast" id="toast" role="status"></div>
     <script src="xhs-data.js?v=500"></script>
     <script src="xhs-latest-data.js?v=300"></script>
-    <script src="script.js?v=editable-style-torras-1"></script>
+    <script src="script.js?v=move-collection-1"></script>
   </body>
 </html>

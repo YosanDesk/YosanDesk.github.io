@@ -33,6 +33,7 @@ h1 em{color:var(--green);font-weight:500}
 .source-filter b{margin-left:5px;color:var(--muted);font-size:10px}
 .source-filter.active{background:var(--ink);border-color:var(--ink);color:#fff}
 .source-filter.active b{color:#d8d8d3}
+.source-edit-hint{margin:8px 0 0;color:var(--muted);font-size:10px;letter-spacing:.2px}
 .filter{flex:none;padding:7px 13px;border:1px solid var(--line);background:transparent;cursor:pointer;font-size:12px}
 .filter:hover,.filter.active{background:var(--green);border-color:var(--green);color:#fff}
 .collection{padding:60px clamp(18px,5vw,76px) 100px}
@@ -47,6 +48,8 @@ h1 em{color:var(--green);font-weight:500}
 .card{position:relative;break-inside:avoid;margin:0 0 16px;background:var(--card);box-shadow:0 1px 0 rgba(0,0,0,.04);cursor:pointer;overflow:hidden}
 .image-wrap{position:relative;background:#ddd;overflow:hidden}
 .card img{display:block;width:100%;height:auto;min-height:210px;object-fit:cover;transition:transform .45s ease,filter .3s}
+.image-wrap img{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.image-wrap.long-pressing{outline:3px solid var(--green);outline-offset:-3px}
 .card:hover img{transform:scale(1.025)}
 .card.loading img{filter:blur(8px)}
 .card-body{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:13px 14px 15px}

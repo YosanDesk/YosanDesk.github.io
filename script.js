@@ -84,7 +84,14 @@ const deletePasswordForm = document.querySelector("#deletePasswordForm");
 const styleEditDialog = document.querySelector("#styleEditDialog");
 const styleEditForm = document.querySelector("#styleEditForm");
 const styleEditCategory = document.querySelector("#styleEditCategory");
+const collectionEditDialog = document.querySelector("#collectionEditDialog");
+const collectionEditForm = document.querySelector("#collectionEditForm");
+const collectionEditSelect = document.querySelector("#collectionEditSelect");
 let pendingStyleKey = "";
+let pendingCollectionKey = "";
+let longPressTimer = null;
+let longPressState = null;
+let suppressPhotoClickUntil = 0;
 
 categories.forEach(category => {
   const button = document.createElement("button");
@@ -248,6 +255,16 @@ async function updateCloudStyle(sourceKey, category) {
   return response.json();
 }
 
+async function updateCloudCollection(sourceKey, collection) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/update_desk_item_collection`, {
+    method: "POST",
+    headers: apiHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ p_source_key: sourceKey, p_collection: collection })
+  });
+  if (!response.ok) throw new Error("collection-update-failed");
+  return response.json();
+}
+
 async function insertCloudRow(record) {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/desk_items`, {
     method: "POST",
@@ -301,7 +318,57 @@ sourceFilters.addEventListener("click", event => {
   render();
 });
 
+function openCollectionEditor(item) {
+  pendingCollectionKey = item.key;
+  collectionEditSelect.value = sourceGroup(item);
+  if (!collectionEditDialog.open) collectionEditDialog.showModal();
+}
+
+function clearLongPress() {
+  if (longPressTimer) clearTimeout(longPressTimer);
+  longPressTimer = null;
+  longPressState?.wrap?.classList.remove("long-pressing");
+  longPressState = null;
+}
+
+gallery.addEventListener("contextmenu", event => {
+  const wrap = event.target.closest(".image-wrap");
+  if (!wrap || event.target.closest("button")) return;
+  event.preventDefault();
+  clearLongPress();
+  const item = items.find(entry => entry.key === wrap.closest(".card")?.dataset.key);
+  if (item && !collectionEditDialog.open) openCollectionEditor(item);
+});
+
+gallery.addEventListener("pointerdown", event => {
+  if (event.pointerType !== "touch" || event.target.closest("button")) return;
+  const wrap = event.target.closest(".image-wrap");
+  if (!wrap) return;
+  clearLongPress();
+  longPressState = { key: wrap.closest(".card")?.dataset.key, x: event.clientX, y: event.clientY, wrap };
+  wrap.classList.add("long-pressing");
+  longPressTimer = setTimeout(() => {
+    const item = items.find(entry => entry.key === longPressState?.key);
+    if (item) {
+      suppressPhotoClickUntil = Date.now() + 1000;
+      navigator.vibrate?.(30);
+      openCollectionEditor(item);
+    }
+    clearLongPress();
+  }, 650);
+});
+
+gallery.addEventListener("pointermove", event => {
+  if (!longPressState) return;
+  if (Math.hypot(event.clientX - longPressState.x, event.clientY - longPressState.y) > 12) clearLongPress();
+});
+
+["pointerup", "pointercancel", "pointerleave"].forEach(type => gallery.addEventListener(type, clearLongPress));
+
 gallery.addEventListener("click", async event => {
+  if (Date.now() < suppressPhotoClickUntil && event.target.closest(".image-wrap")) {
+    event.preventDefault(); event.stopPropagation(); return;
+  }
   const card = event.target.closest(".card"); if (!card) return;
   const item = items.find(entry => entry.key === card.dataset.key);
   if (!item) return;
@@ -435,6 +502,30 @@ styleEditForm.addEventListener("submit", async event => {
   pendingStyleKey = "";
   styleEditDialog.close(); submit.disabled = false; submit.textContent = "保存风格";
   rebuildItems(); render(); showToast("风格已同步更新");
+});
+
+document.querySelector("#collectionEditCloseBtn").addEventListener("click", () => collectionEditDialog.close());
+document.querySelector("#collectionEditCancelBtn").addEventListener("click", () => collectionEditDialog.close());
+collectionEditDialog.addEventListener("click", event => { if (event.target === collectionEditDialog) collectionEditDialog.close(); });
+collectionEditForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  const item = items.find(entry => entry.key === pendingCollectionKey);
+  if (!item) { collectionEditDialog.close(); return; }
+  const submit = collectionEditForm.querySelector('[type="submit"]');
+  submit.disabled = true; submit.textContent = "保存中…";
+  let savedRow;
+  try {
+    savedRow = await updateCloudCollection(item.key, collectionEditSelect.value);
+  } catch {
+    submit.disabled = false; submit.textContent = "保存大区";
+    showToast("大区调整失败，请稍后重试"); return;
+  }
+  const existing = remoteRows.find(row => row.source_key === item.key);
+  if (existing) Object.assign(existing, savedRow); else remoteRows.push(savedRow);
+  const destinationName = collectionNames[collectionEditSelect.value];
+  pendingCollectionKey = "";
+  collectionEditDialog.close(); submit.disabled = false; submit.textContent = "保存大区";
+  rebuildItems(); render(); showToast(`已移动到${destinationName}`);
 });
 
 async function performDelete(item, button) {
