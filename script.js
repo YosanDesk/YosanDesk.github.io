@@ -183,6 +183,11 @@ function evalRatio(ratio) {
   return b ? a / b : 0.8;
 }
 
+function previewImage(item) {
+  const match = String(item.image || "").match(/^assets\/(desk-inspiration|xiaohongshu-desk|xiaohongshu-latest)\/([^/]+)\.(?:jpe?g|webp|png)$/i);
+  return match ? `assets/thumbs/${match[1]}/${match[2]}.jpg` : item.image;
+}
+
 function pageSize() {
   return window.matchMedia("(max-width: 760px)").matches ? 16 : 32;
 }
@@ -195,9 +200,11 @@ function cardTemplate(item, index = 99) {
   const active = saved.has(item.key) ? " active" : "";
   const height = Math.round(310 / evalRatio(item.ratio));
   const eager = index < 4;
+  const preview = previewImage(item);
+  const originalAttribute = preview !== item.image ? ` data-original="${escapeHtml(item.image)}"` : "";
   return `<article class="card loading" data-key="${escapeHtml(item.key)}">
     <div class="image-wrap" style="aspect-ratio:${validRatio(item.ratio)}">
-      <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}桌搭灵感" loading="${eager ? "eager" : "lazy"}" decoding="async" fetchpriority="${eager ? "high" : "low"}" width="620" height="${height}" />
+      <img src="${escapeHtml(preview)}"${originalAttribute} alt="${escapeHtml(item.title)}桌搭灵感" loading="${eager ? "eager" : "lazy"}" decoding="async" fetchpriority="${eager ? "high" : "low"}" width="620" height="${height}" />
       <span class="num">${formatNo(item)}</span>
       <button class="delete-btn" type="button" aria-label="删除图片">⌫</button>
     </div>
@@ -210,7 +217,14 @@ function hydrateImages(container) {
     img.dataset.hydrated = "1";
     if (img.complete && img.naturalWidth) img.closest(".card").classList.remove("loading");
     img.addEventListener("load", () => img.closest(".card")?.classList.remove("loading"), { once: true });
-    img.addEventListener("error", () => img.closest(".card")?.classList.add("image-error"), { once: true });
+    img.addEventListener("error", () => {
+      if (img.dataset.original && !img.dataset.fallback) {
+        img.dataset.fallback = "1";
+        img.src = img.dataset.original;
+      } else {
+        img.closest(".card")?.classList.add("image-error");
+      }
+    });
   });
 }
 
