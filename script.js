@@ -65,6 +65,8 @@ let pendingDeleteKey = "";
 let activeCategory = "all";
 let activeSource = "all";
 let savedOnly = false;
+let remoteSignature = "";
+let renderLimit = window.matchMedia("(max-width: 760px)").matches ? 16 : 32;
 
 const gallery = document.querySelector("#gallery");
 const filters = document.querySelector("#filters");
@@ -87,6 +89,9 @@ const styleEditCategory = document.querySelector("#styleEditCategory");
 const collectionEditDialog = document.querySelector("#collectionEditDialog");
 const collectionEditForm = document.querySelector("#collectionEditForm");
 const collectionEditSelect = document.querySelector("#collectionEditSelect");
+const loadMoreWrap = document.querySelector("#loadMoreWrap");
+const loadMoreBtn = document.querySelector("#loadMoreBtn");
+const loadMoreStatus = document.querySelector("#loadMoreStatus");
 let pendingStyleKey = "";
 let pendingCollectionKey = "";
 let longPressTimer = null;
@@ -178,12 +183,21 @@ function evalRatio(ratio) {
   return b ? a / b : 0.8;
 }
 
-function cardTemplate(item) {
+function pageSize() {
+  return window.matchMedia("(max-width: 760px)").matches ? 16 : 32;
+}
+
+function resetRenderLimit() {
+  renderLimit = pageSize();
+}
+
+function cardTemplate(item, index = 99) {
   const active = saved.has(item.key) ? " active" : "";
   const height = Math.round(310 / evalRatio(item.ratio));
+  const eager = index < 4;
   return `<article class="card loading" data-key="${escapeHtml(item.key)}">
     <div class="image-wrap" style="aspect-ratio:${validRatio(item.ratio)}">
-      <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}桌搭灵感" loading="lazy" width="620" height="${height}" />
+      <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}桌搭灵感" loading="${eager ? "eager" : "lazy"}" decoding="async" fetchpriority="${eager ? "high" : "low"}" width="620" height="${height}" />
       <span class="num">${formatNo(item)}</span>
       <button class="delete-btn" type="button" aria-label="删除图片">⌫</button>
     </div>
@@ -191,12 +205,47 @@ function cardTemplate(item) {
   </article>`;
 }
 
+function hydrateImages(container) {
+  container.querySelectorAll("img:not([data-hydrated])").forEach(img => {
+    img.dataset.hydrated = "1";
+    if (img.complete && img.naturalWidth) img.closest(".card").classList.remove("loading");
+    img.addEventListener("load", () => img.closest(".card")?.classList.remove("loading"), { once: true });
+    img.addEventListener("error", () => img.closest(".card")?.classList.add("image-error"), { once: true });
+  });
+}
+
+function updateLoadMore(total, shown) {
+  const remaining = Math.max(0, total - shown);
+  loadMoreWrap.hidden = remaining === 0;
+  loadMoreStatus.textContent = remaining ? `已显示 ${shown} / ${total}` : "";
+}
+
+function loadMore() {
+  const allItems = visibleItems();
+  const shown = gallery.querySelectorAll(".card").length;
+  if (shown >= allItems.length) return updateLoadMore(allItems.length, shown);
+  const nextLimit = Math.min(shown + pageSize(), allItems.length);
+  const holder = document.createElement("div");
+  holder.innerHTML = allItems.slice(shown, nextLimit).map((item, index) => cardTemplate(item, shown + index)).join("");
+  const fragment = document.createDocumentFragment();
+  [...holder.children].forEach(card => fragment.append(card));
+  gallery.append(fragment);
+  renderLimit = nextLimit;
+  hydrateImages(gallery);
+  updateLoadMore(allItems.length, nextLimit);
+}
+
+window.addEventListener("scroll", () => {
+  if (!loadMoreWrap.hidden && window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 240) loadMore();
+}, { passive: true });
+
 function render() {
-  const list = visibleItems();
+  const allItems = visibleItems();
+  const list = allItems.slice(0, renderLimit);
   gallery.innerHTML = list.map(cardTemplate).join("");
   document.querySelector("#imageTotal").textContent = items.length;
   document.querySelector("#footerCount").textContent = items.length;
-  document.querySelector("#resultCount").textContent = list.length;
+  document.querySelector("#resultCount").textContent = allItems.length;
   document.querySelector('[data-source="common"] b').textContent = items.filter(item => sourceGroup(item) === "common").length;
   document.querySelector('[data-source="other"] b').textContent = items.filter(item => sourceGroup(item) === "other").length;
   document.querySelector('[data-source="torras"] b').textContent = items.filter(item => sourceGroup(item) === "torras").length;
@@ -205,12 +254,9 @@ function render() {
   document.querySelector("#footerXhsCount").textContent = xhsCount;
   const sourceTitle = activeSource === "common" ? " · 常用桌搭" : activeSource === "other" ? " · 其他桌搭" : activeSource === "torras" ? " · 图拉斯桌搭" : "";
   document.querySelector("#resultTitle").textContent = savedOnly ? "我的收藏" : categories.find(c => c.id === activeCategory).name + (activeCategory === "all" ? "灵感" : "桌搭") + sourceTitle;
-  document.querySelector("#emptyState").hidden = list.length > 0;
-  gallery.querySelectorAll("img").forEach(img => {
-    if (img.complete && img.naturalWidth) img.closest(".card").classList.remove("loading");
-    img.addEventListener("load", () => img.closest(".card").classList.remove("loading"));
-    img.addEventListener("error", () => img.closest(".card").classList.add("image-error"));
-  });
+  document.querySelector("#emptyState").hidden = allItems.length > 0;
+  hydrateImages(gallery);
+  updateLoadMore(allItems.length, list.length);
 }
 
 function updateSaved() {
@@ -289,7 +335,11 @@ async function loadCloudRows(silent = false) {
   try {
     const response = await fetch(`${SUPABASE_URL}/rest/v1/desk_items?select=*&order=created_at.asc`, { headers: apiHeaders() });
     if (!response.ok) throw new Error("cloud-read-failed");
-    remoteRows = await response.json();
+    const nextRows = await response.json();
+    const nextSignature = JSON.stringify(nextRows.map(row => [row.id, row.source_key, row.category, row.platform, row.deleted, row.updated_at, row.image_url]));
+    if (nextSignature === remoteSignature) return;
+    remoteSignature = nextSignature;
+    remoteRows = nextRows;
     rebuildItems();
     render();
   } catch {
@@ -306,6 +356,7 @@ async function initCloud() {
 filters.addEventListener("click", event => {
   const button = event.target.closest(".filter"); if (!button) return;
   activeCategory = button.dataset.category; savedOnly = false;
+  resetRenderLimit();
   document.querySelector("#savedBtn").classList.remove("active");
   filters.querySelectorAll(".filter").forEach(el => el.classList.toggle("active", el === button)); render();
 });
@@ -313,6 +364,7 @@ filters.addEventListener("click", event => {
 sourceFilters.addEventListener("click", event => {
   const button = event.target.closest(".source-filter"); if (!button) return;
   activeSource = button.dataset.source; savedOnly = false;
+  resetRenderLimit();
   document.querySelector("#savedBtn").classList.remove("active");
   sourceFilters.querySelectorAll(".source-filter").forEach(el => el.classList.toggle("active", el === button));
   render();
@@ -475,6 +527,7 @@ addImageForm.addEventListener("submit", async event => {
   remoteRows.push(data);
   rebuildItems();
   addImageForm.reset(); addImageDialog.close(); activeCategory = "all"; activeSource = "all";
+  resetRenderLimit();
   document.querySelectorAll(".filter").forEach(el => el.classList.toggle("active", el.dataset.category === "all"));
   document.querySelectorAll(".source-filter").forEach(el => el.classList.toggle("active", el.dataset.source === "all"));
   submit.disabled = false; submit.textContent = originalText;
@@ -577,10 +630,22 @@ deletePasswordForm.addEventListener("submit", async event => {
   }
 });
 
-searchInput.addEventListener("input", render);
-document.querySelector("#savedBtn").addEventListener("click", event => { savedOnly = !savedOnly; event.currentTarget.classList.toggle("active", savedOnly); render(); });
-document.querySelector("#randomBtn").addEventListener("click", () => { const item = items[Math.floor(Math.random() * items.length)]; if (item) document.querySelector(`[data-key="${CSS.escape(item.key)}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" }); });
-document.querySelector("#clearBtn").addEventListener("click", () => { activeCategory = "all"; activeSource = "all"; savedOnly = false; searchInput.value = ""; document.querySelectorAll(".filter").forEach(el => el.classList.toggle("active", el.dataset.category === "all")); document.querySelectorAll(".source-filter").forEach(el => el.classList.toggle("active", el.dataset.source === "all")); render(); });
+let searchTimer;
+searchInput.addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { resetRenderLimit(); render(); }, 120);
+});
+loadMoreBtn.addEventListener("click", loadMore);
+document.querySelector("#savedBtn").addEventListener("click", event => { savedOnly = !savedOnly; event.currentTarget.classList.toggle("active", savedOnly); resetRenderLimit(); render(); });
+document.querySelector("#randomBtn").addEventListener("click", () => {
+  const list = visibleItems();
+  const item = list[Math.floor(Math.random() * list.length)];
+  if (!item) return;
+  const index = list.findIndex(entry => entry.key === item.key);
+  if (index >= renderLimit) { renderLimit = index + 1; render(); }
+  requestAnimationFrame(() => document.querySelector(`[data-key="${CSS.escape(item.key)}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
+});
+document.querySelector("#clearBtn").addEventListener("click", () => { activeCategory = "all"; activeSource = "all"; savedOnly = false; searchInput.value = ""; resetRenderLimit(); document.querySelectorAll(".filter").forEach(el => el.classList.toggle("active", el.dataset.category === "all")); document.querySelectorAll(".source-filter").forEach(el => el.classList.toggle("active", el.dataset.source === "all")); render(); });
 document.querySelector(".lightbox .close-btn").addEventListener("click", () => lightbox.close());
 lightbox.addEventListener("click", event => { if (event.target === lightbox) lightbox.close(); });
 

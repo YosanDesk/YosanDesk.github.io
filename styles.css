@@ -45,7 +45,7 @@ h1 em{color:var(--green);font-weight:500}
 .collection-head .result-count{color:var(--muted);font-weight:400;letter-spacing:0}
 .result-count b{color:var(--ink);font-size:20px}
 .masonry{columns:4 250px;column-gap:16px}
-.card{position:relative;break-inside:avoid;margin:0 0 16px;background:var(--card);box-shadow:0 1px 0 rgba(0,0,0,.04);cursor:pointer;overflow:hidden}
+.card{position:relative;break-inside:avoid;margin:0 0 16px;background:var(--card);box-shadow:0 1px 0 rgba(0,0,0,.04);cursor:pointer;overflow:hidden;content-visibility:auto;contain-intrinsic-size:420px}
 .image-wrap{position:relative;background:#ddd;overflow:hidden}
 .card img{display:block;width:100%;height:auto;min-height:210px;object-fit:cover;transition:transform .45s ease,filter .3s}
 .image-wrap img{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
@@ -69,6 +69,9 @@ h1 em{color:var(--green);font-weight:500}
 .empty strong{font-family:Georgia,"Songti SC",serif;font-size:25px}
 .empty p{color:var(--muted)}
 .empty button{padding:9px 20px;background:var(--green);color:#fff;border:0;cursor:pointer}
+.load-more-wrap{display:flex;align-items:center;justify-content:center;gap:14px;padding:28px 0 8px;color:var(--muted);font-size:11px}
+.load-more-wrap[hidden]{display:none}
+.load-more-wrap button{padding:10px 22px;border:1px solid var(--green);background:var(--green);color:#fff;cursor:pointer;font-size:12px;font-weight:800}
 .lightbox{width:min(1000px,92vw);padding:0;border:0;background:#fff;box-shadow:0 30px 100px rgba(0,0,0,.35)}
 .lightbox::backdrop{background:rgba(16,18,16,.84);backdrop-filter:blur(5px)}
 .lightbox-media{background:#111;max-height:72vh}
@@ -117,6 +120,7 @@ footer{grid-template-columns:1fr;gap:15px}
 .lightbox-media img{height:55vh}
 .saved-btn{font-size:12px}
 .delete-btn{opacity:.86}
+.load-more-wrap{padding-top:18px}
 }
 @media(max-width:420px){h1{font-size:44px}
 .intro{min-height:0}
