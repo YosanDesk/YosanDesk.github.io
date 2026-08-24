@@ -58,9 +58,11 @@ function readLocalArray(key) {
 
 const saved = new Set(readLocalArray("deskSaved").map(String));
 const DELETE_TOKEN_KEY = "deskDeleteToken";
+const RECYCLE_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
 let remoteRows = [];
 let items = [...sourceItems];
 let deleteToken = localStorage.getItem(DELETE_TOKEN_KEY) || "";
+let isAdmin = false;
 let pendingDeleteKey = "";
 let activeCategory = "all";
 let activeSource = "all";
@@ -92,6 +94,9 @@ const collectionEditSelect = document.querySelector("#collectionEditSelect");
 const loadMoreWrap = document.querySelector("#loadMoreWrap");
 const loadMoreBtn = document.querySelector("#loadMoreBtn");
 const loadMoreStatus = document.querySelector("#loadMoreStatus");
+const adminBtn = document.querySelector("#adminBtn");
+const recycleBinDialog = document.querySelector("#recycleBinDialog");
+const recycleList = document.querySelector("#recycleList");
 let pendingStyleKey = "";
 let pendingCollectionKey = "";
 let longPressTimer = null;
@@ -154,6 +159,45 @@ function rebuildItems() {
     merged.set(row.source_key, cloudRowToItem(row, merged.get(row.source_key)));
   });
   items = [...merged.values()];
+}
+
+function recycleRows() {
+  const now = Date.now();
+  return remoteRows
+    .filter(row => row.deleted && now - new Date(row.deleted_at || row.updated_at || 0).getTime() < RECYCLE_RETENTION_MS)
+    .sort((a, b) => new Date(b.deleted_at || b.updated_at) - new Date(a.deleted_at || a.updated_at));
+}
+
+function deletedRowItem(row) {
+  const existing = sourceItems.find(item => item.key === row.source_key) || {};
+  return cloudRowToItem(row, existing);
+}
+
+function remainingText(row) {
+  const expiresAt = new Date(row.deleted_at || row.updated_at).getTime() + RECYCLE_RETENTION_MS;
+  const hours = Math.max(1, Math.ceil((expiresAt - Date.now()) / 3_600_000));
+  return hours > 24 ? `剩余 ${Math.ceil(hours / 24)} 天` : `剩余 ${hours} 小时`;
+}
+
+function renderRecycle() {
+  const rows = recycleRows();
+  recycleList.innerHTML = rows.length ? rows.map(row => {
+    const item = deletedRowItem(row);
+    return `<div class="recycle-item" data-key="${escapeHtml(row.source_key)}">
+      <img src="${escapeHtml(previewImage(item))}" alt="${escapeHtml(item.categoryName || "桌搭")}回收站预览" loading="lazy" decoding="async" />
+      <div><strong>${escapeHtml(item.categoryName || "桌搭图片")}</strong><small>${remainingText(row)} · 到期后不可恢复</small></div>
+      <button class="restore-btn" type="button">恢复</button>
+    </div>`;
+  }).join("") : `<div class="recycle-empty">回收站为空</div>`;
+}
+
+function setAdminUnlocked(unlocked) {
+  isAdmin = unlocked;
+  document.body.classList.toggle("admin-unlocked", unlocked);
+  adminBtn.classList.toggle("active", unlocked);
+  adminBtn.textContent = unlocked ? `回收 ${recycleRows().length}` : "管理";
+  adminBtn.setAttribute("aria-label", unlocked ? "打开管理员回收站" : "管理员登录");
+  if (unlocked) renderRecycle();
 }
 
 function visibleItems() {
@@ -297,6 +341,16 @@ async function unlockDeletion(password) {
   return response.json();
 }
 
+async function validateAdminToken() {
+  if (!deleteToken) return false;
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/validate_desk_admin`, {
+    method: "POST",
+    headers: apiHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ p_token: deleteToken })
+  });
+  return response.ok && await response.json();
+}
+
 async function deleteCloudItem(sourceKey) {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/delete_desk_item`, {
     method: "POST",
@@ -304,8 +358,23 @@ async function deleteCloudItem(sourceKey) {
     body: JSON.stringify({ p_source_key: sourceKey, p_token: deleteToken })
   });
   if (!response.ok) {
-    if (response.status === 400 || response.status === 401 || response.status === 403) throw new Error("delete-session-invalid");
+    const details = await response.text();
+    if (details.includes("invalid_delete_session")) throw new Error("delete-session-invalid");
     throw new Error("cloud-delete-failed");
+  }
+  return response.json();
+}
+
+async function restoreCloudItem(sourceKey) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/restore_desk_item`, {
+    method: "POST",
+    headers: apiHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ p_source_key: sourceKey, p_token: deleteToken })
+  });
+  if (!response.ok) {
+    const details = await response.text();
+    if (details.includes("invalid_delete_session")) throw new Error("restore-session-invalid");
+    throw new Error("restore-failed");
   }
   return response.json();
 }
@@ -355,12 +424,13 @@ async function loadCloudRows(silent = false) {
     const response = await fetch(`${SUPABASE_URL}/rest/v1/desk_items?select=*&order=created_at.asc`, { headers: apiHeaders() });
     if (!response.ok) throw new Error("cloud-read-failed");
     const nextRows = await response.json();
-    const nextSignature = JSON.stringify(nextRows.map(row => [row.id, row.source_key, row.category, row.platform, row.deleted, row.updated_at, row.image_url]));
+    const nextSignature = JSON.stringify(nextRows.map(row => [row.id, row.source_key, row.category, row.platform, row.deleted, row.deleted_at, row.updated_at, row.image_url]));
     if (nextSignature === remoteSignature) return;
     remoteSignature = nextSignature;
     remoteRows = nextRows;
     rebuildItems();
     render();
+    setAdminUnlocked(isAdmin);
   } catch {
     if (!silent) showToast("云端数据加载失败，已显示基础图库");
   }
@@ -370,6 +440,19 @@ async function initCloud() {
   await loadCloudRows();
   setInterval(() => loadCloudRows(true), 10_000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) loadCloudRows(true); });
+}
+
+async function initAdmin() {
+  if (!deleteToken) return setAdminUnlocked(false);
+  try {
+    setAdminUnlocked(await validateAdminToken());
+  } catch {
+    setAdminUnlocked(false);
+  }
+  if (!isAdmin) {
+    deleteToken = "";
+    localStorage.removeItem(DELETE_TOKEN_KEY);
+  }
 }
 
 filters.addEventListener("click", event => {
@@ -452,13 +535,13 @@ gallery.addEventListener("click", async event => {
   }
   if (event.target.closest(".delete-btn")) {
     event.stopPropagation();
-    if (!window.confirm(`确定从所有访客的网站中删除这张${item.categoryName}图片吗？`)) return;
-    if (!deleteToken) {
+    if (!isAdmin || !deleteToken) {
       pendingDeleteKey = item.key;
       deletePasswordDialog.showModal();
       document.querySelector("#deletePassword").focus();
       return;
     }
+    if (!window.confirm(`确定删除这张${item.categoryName}图片吗？删除后将在回收站保留3天。`)) return;
     await performDelete(item, event.target.closest(".delete-btn")); return;
   }
   if (event.target.closest(".save")) {
@@ -635,9 +718,10 @@ async function performDelete(item, button) {
     if (error.message === "delete-session-invalid") {
       deleteToken = "";
       localStorage.removeItem(DELETE_TOKEN_KEY);
+      setAdminUnlocked(false);
       pendingDeleteKey = item.key;
       deletePasswordDialog.showModal();
-      showToast("删除权限已过期，请重新输入密码");
+      showToast("管理员登录已过期，请重新登录");
     } else {
       showToast("删除失败，请稍后重试");
     }
@@ -646,8 +730,62 @@ async function performDelete(item, button) {
   const existing = remoteRows.find(row => row.source_key === item.key);
   if (existing) Object.assign(existing, savedRow); else remoteRows.push(savedRow);
   saved.delete(item.key);
-  updateSaved(); rebuildItems(); render(); showToast("已同步删除，所有访客均会更新");
+  updateSaved(); rebuildItems(); render(); setAdminUnlocked(true); showToast("已移入回收站，3天内可以恢复");
 }
+
+adminBtn.addEventListener("click", () => {
+  pendingDeleteKey = "";
+  if (isAdmin) {
+    setAdminUnlocked(true);
+    recycleBinDialog.showModal();
+  } else {
+    deletePasswordDialog.showModal();
+    document.querySelector("#deletePassword").focus();
+  }
+});
+
+document.querySelector("#recycleCloseBtn").addEventListener("click", () => recycleBinDialog.close());
+document.querySelector("#recycleDoneBtn").addEventListener("click", () => recycleBinDialog.close());
+recycleBinDialog.addEventListener("click", event => { if (event.target === recycleBinDialog) recycleBinDialog.close(); });
+document.querySelector("#adminLogoutBtn").addEventListener("click", () => {
+  deleteToken = "";
+  localStorage.removeItem(DELETE_TOKEN_KEY);
+  setAdminUnlocked(false);
+  recycleBinDialog.close();
+  showToast("已退出管理员");
+});
+
+recycleList.addEventListener("click", async event => {
+  const button = event.target.closest(".restore-btn");
+  if (!button) return;
+  const sourceKey = button.closest(".recycle-item")?.dataset.key;
+  if (!sourceKey) return;
+  button.disabled = true;
+  button.textContent = "恢复中…";
+  let savedRow;
+  try {
+    savedRow = await restoreCloudItem(sourceKey);
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = "恢复";
+    if (error.message === "restore-session-invalid") {
+      deleteToken = "";
+      localStorage.removeItem(DELETE_TOKEN_KEY);
+      setAdminUnlocked(false);
+      recycleBinDialog.close();
+      showToast("管理员登录已过期，请重新登录");
+    } else {
+      showToast("图片已过期或恢复失败");
+      await loadCloudRows(true);
+      renderRecycle();
+    }
+    return;
+  }
+  const existing = remoteRows.find(row => row.source_key === sourceKey);
+  if (existing) Object.assign(existing, savedRow); else remoteRows.push(savedRow);
+  rebuildItems(); resetRenderLimit(); render(); setAdminUnlocked(true);
+  showToast("图片已恢复并同步给所有访客");
+});
 
 document.querySelector("#deletePasswordCloseBtn").addEventListener("click", () => deletePasswordDialog.close());
 document.querySelector("#deletePasswordCancelBtn").addEventListener("click", () => deletePasswordDialog.close());
@@ -659,18 +797,22 @@ deletePasswordForm.addEventListener("submit", async event => {
   try {
     deleteToken = await unlockDeletion(document.querySelector("#deletePassword").value);
   } catch {
-    submit.disabled = false; submit.textContent = "确认并解锁";
-    showToast("删除密码错误"); return;
+    submit.disabled = false; submit.textContent = "登录";
+    showToast("管理员密码错误"); return;
   }
   localStorage.setItem(DELETE_TOKEN_KEY, deleteToken);
   deletePasswordForm.reset(); deletePasswordDialog.close();
-  submit.disabled = false; submit.textContent = "确认并解锁";
+  submit.disabled = false; submit.textContent = "登录";
+  setAdminUnlocked(true);
   const item = items.find(entry => entry.key === pendingDeleteKey);
   pendingDeleteKey = "";
-  showToast("删除权限已解锁，当前浏览器无需再次输入");
+  showToast("管理员登录成功");
   if (item) {
     const button = gallery.querySelector(`[data-key="${CSS.escape(item.key)}"] .delete-btn`);
     if (button) await performDelete(item, button);
+  } else {
+    renderRecycle();
+    recycleBinDialog.showModal();
   }
 });
 
@@ -699,4 +841,5 @@ function showToast(message) {
   clearTimeout(showToast.timer); showToast.timer = setTimeout(() => toast.classList.remove("show"), 2200);
 }
 
-updateSaved(); rebuildItems(); render(); initCloud();
+setInterval(() => { if (isAdmin) setAdminUnlocked(true); }, 60_000);
+updateSaved(); rebuildItems(); render(); initAdmin(); initCloud();
