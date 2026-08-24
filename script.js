@@ -185,7 +185,12 @@ function evalRatio(ratio) {
 
 function previewImage(item) {
   const match = String(item.image || "").match(/^assets\/(desk-inspiration|xiaohongshu-desk|xiaohongshu-latest)\/([^/]+)\.(?:jpe?g|webp|png)$/i);
-  return match ? `assets/thumbs/${match[1]}/${match[2]}.jpg` : item.image;
+  if (match) return `assets/thumbs/${match[1]}/${match[2]}.jpg`;
+  if (item.key?.startsWith("custom:") && item.tags?.includes("__fast_preview__")) {
+    const token = item.key.slice("custom:".length);
+    return `${SUPABASE_URL}/storage/v1/object/public/desk-images/public/${encodeURIComponent(token)}-preview.jpg`;
+  }
+  return item.image;
 }
 
 function pageSize() {
@@ -464,7 +469,7 @@ gallery.addEventListener("click", async event => {
   document.querySelector("#lightboxImage").alt = item.title;
   document.querySelector("#lightboxNo").textContent = `${formatNo(item)} · ${item.categoryName}`;
   document.querySelector("#lightboxTitle").textContent = item.title;
-  document.querySelector("#lightboxTags").textContent = (item.tags || []).join(" · ") + (item.uploadWidth ? ` · 上传尺寸 ${item.uploadWidth}×${item.uploadHeight}` : "");
+  document.querySelector("#lightboxTags").textContent = (item.tags || []).filter(tag => !String(tag).startsWith("__")).join(" · ") + (item.uploadWidth ? ` · 上传尺寸 ${item.uploadWidth}×${item.uploadHeight}` : "");
   document.querySelector("#lightboxNote").textContent = item.note ? `备注：${item.note}` : "";
   document.querySelector("#originalLink").href = item.image;
   document.querySelector("#sourceLink").href = item.source || "#";
@@ -490,6 +495,24 @@ function imageDimensions(file) {
   });
 }
 
+async function createUploadPreview(file) {
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  } catch {
+    bitmap = await createImageBitmap(file);
+  }
+  const scale = Math.min(1, 720 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  canvas.getContext("2d", { alpha: false }).drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.55));
+  if (!blob) throw new Error("preview-create-failed");
+  return blob;
+}
+
 function safeFileName(name) {
   const extension = name.includes(".") ? `.${name.split(".").pop().toLowerCase()}` : "";
   return `original${extension.replace(/[^.a-z0-9]/g, "")}`;
@@ -508,9 +531,16 @@ addImageForm.addEventListener("submit", async event => {
   const dimensions = await imageDimensions(file);
   const token = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const path = `public/${token}-${safeFileName(file.name)}`;
+  const previewPath = `public/${token}-preview.jpg`;
   let publicUrl;
+  let previewReady = false;
   try {
-    publicUrl = await uploadOriginal(path, file);
+    const previewBlob = await createUploadPreview(file).catch(() => null);
+    const uploads = [uploadOriginal(path, file)];
+    if (previewBlob) uploads.push(uploadOriginal(previewPath, previewBlob).catch(() => null));
+    const uploadResults = await Promise.all(uploads);
+    publicUrl = uploadResults[0];
+    previewReady = Boolean(uploadResults[1]);
   } catch {
     submit.disabled = false; submit.textContent = originalText;
     showToast("原图上传失败，请稍后重试"); return;
@@ -521,7 +551,7 @@ addImageForm.addEventListener("submit", async event => {
     category: category.id,
     category_name: category.name,
     title: imageNote.value.trim() || `我的${category.name}桌搭`,
-    tags: [category.name],
+    tags: [category.name, ...(previewReady ? ["__fast_preview__"] : [])],
     ratio: dimensions.width && dimensions.height ? `${dimensions.width}/${dimensions.height}` : "4/5",
     image_url: publicUrl,
     source_url: imageSource.value.trim() || null,
