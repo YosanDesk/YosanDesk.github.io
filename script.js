@@ -102,6 +102,7 @@ let pendingStyleKey = "";
 let pendingCollectionKey = "";
 let longPressTimer = null;
 let deferredInstallPrompt = null;
+let jumpToEnd = false;
 let longPressState = null;
 let suppressPhotoClickUntil = 0;
 
@@ -827,11 +828,17 @@ loadMoreBtn.addEventListener("click", loadMore);
 document.querySelector("#savedBtn").addEventListener("click", event => { savedOnly = !savedOnly; event.currentTarget.classList.toggle("active", savedOnly); resetRenderLimit(); render(); });
 document.querySelector("#randomBtn").addEventListener("click", () => {
   const list = visibleItems();
-  const item = list[Math.floor(Math.random() * list.length)];
-  if (!item) return;
-  const index = list.findIndex(entry => entry.key === item.key);
-  if (index >= renderLimit) { renderLimit = index + 1; render(); }
-  requestAnimationFrame(() => document.querySelector(`[data-key="${CSS.escape(item.key)}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  if (!list.length) return;
+  jumpToEnd = !jumpToEnd;
+  const targetIndex = jumpToEnd ? list.length - 1 : 0;
+  if (targetIndex >= renderLimit) { renderLimit = list.length; render(); }
+  requestAnimationFrame(() => {
+    const target = document.querySelector(`[data-key="${CSS.escape(list[targetIndex].key)}"]`);
+    target?.scrollIntoView({ behavior: "smooth", block: jumpToEnd ? "end" : "start" });
+  });
+  const button = document.querySelector("#randomBtn");
+  button.setAttribute("aria-label", jumpToEnd ? "回到最后一张" : "回到顶部");
+  button.title = jumpToEnd ? "回到顶部" : "回到最后一张";
 });
 window.addEventListener("beforeinstallprompt", event => {
   event.preventDefault();
