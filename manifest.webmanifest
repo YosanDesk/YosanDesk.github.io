@@ -1,0 +1,13 @@
+{
+  "name": "桌搭灵感库",
+  "short_name": "桌搭灵感库",
+  "description": "桌面布置风格灵感收藏库",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f2ed",
+  "theme_color": "#185f45",
+  "icons": [
+    { "src": "assets/app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

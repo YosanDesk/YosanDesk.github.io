@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#185f45"/>
+  <rect x="56" y="56" width="400" height="400" rx="64" fill="#f4f2ed"/>
+  <path d="M118 330h276M151 330V190h210v140M185 190v-38h142v38M207 330v-72h98v72" fill="none" stroke="#171816" stroke-width="22" stroke-linecap="square"/>
+  <text x="256" y="420" text-anchor="middle" font-family="Georgia,serif" font-size="54" font-weight="700" fill="#185f45">桌搭</text>
+</svg>

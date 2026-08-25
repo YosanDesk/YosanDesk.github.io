@@ -95,11 +95,13 @@ const loadMoreWrap = document.querySelector("#loadMoreWrap");
 const loadMoreBtn = document.querySelector("#loadMoreBtn");
 const loadMoreStatus = document.querySelector("#loadMoreStatus");
 const adminBtn = document.querySelector("#adminBtn");
+const shortcutBtn = document.querySelector("#shortcutBtn");
 const recycleBinDialog = document.querySelector("#recycleBinDialog");
 const recycleList = document.querySelector("#recycleList");
 let pendingStyleKey = "";
 let pendingCollectionKey = "";
 let longPressTimer = null;
+let deferredInstallPrompt = null;
 let longPressState = null;
 let suppressPhotoClickUntil = 0;
 
@@ -831,6 +833,26 @@ document.querySelector("#randomBtn").addEventListener("click", () => {
   if (index >= renderLimit) { renderLimit = index + 1; render(); }
   requestAnimationFrame(() => document.querySelector(`[data-key="${CSS.escape(item.key)}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
 });
+window.addEventListener("beforeinstallprompt", event => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+});
+shortcutBtn.addEventListener("click", async () => {
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    const result = await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    if (result.outcome === "accepted") showToast("已添加到桌面");
+    return;
+  }
+  if (window.matchMedia("(display-mode: standalone)").matches) {
+    showToast("已经在桌面应用中打开");
+  } else if (/iphone|ipad|ipod/i.test(navigator.userAgent)) {
+    showToast("请点浏览器分享按钮，选择‘添加到主屏幕’");
+  } else {
+    showToast("请使用浏览器菜单选择‘安装桌面志’或‘添加到桌面’");
+  }
+});
 document.querySelector("#clearBtn").addEventListener("click", () => { activeCategory = "all"; activeSource = "all"; savedOnly = false; searchInput.value = ""; resetRenderLimit(); document.querySelectorAll(".filter").forEach(el => el.classList.toggle("active", el.dataset.category === "all")); document.querySelectorAll(".source-filter").forEach(el => el.classList.toggle("active", el.dataset.source === "all")); render(); });
 document.querySelector(".lightbox .close-btn").addEventListener("click", () => lightbox.close());
 lightbox.addEventListener("click", event => { if (event.target === lightbox) lightbox.close(); });
@@ -841,5 +863,6 @@ function showToast(message) {
   clearTimeout(showToast.timer); showToast.timer = setTimeout(() => toast.classList.remove("show"), 2200);
 }
 
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 setInterval(() => { if (isAdmin) setAdminUnlocked(true); }, 60_000);
 updateSaved(); rebuildItems(); render(); initAdmin(); initCloud();
